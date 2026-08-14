@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Leaf Scan — Potato Diagnostics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --canvas: #f6f1e4;
+    --canvas-deep: #ede4cf;
+    --ink: #16241a;
+    --ink-soft: #4c5c50;
+    --leaf-100: #dfeee0;
+    --leaf-300: #93c79e;
+    --leaf-500: #3f8f5c;
+    --leaf-600: #2f7248;
+    --leaf-900: #133021;
+    --blight-400: #d98a54;
+    --blight-500: #b6552c;
+    --blight-700: #7a3a1c;
+    --gold: #c9962f;
+    --white: #fffdf7;
+    --line: rgba(22, 36, 26, 0.12);
+    --radius: 20px;
+    --shadow: 0 14px 40px rgba(19, 48, 33, 0.10);
+    --shadow-lg: 0 26px 60px rgba(19, 48, 33, 0.16);
+    --display: 'Fraunces', Georgia, serif;
+    --body: 'Manrope', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: var(--body);
+    color: var(--ink);
+    background: var(--canvas);
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* ---------- Ambient background: drifting vein linework + soft light ---------- */
+  .ambient {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .ambient-glow {
+    position: absolute;
+    width: 620px;
+    height: 620px;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.35;
+    animation: drift 22s ease-in-out infinite;
+  }
+  .ambient-glow.a { top: -220px; left: -160px; background: var(--leaf-300); }
+  .ambient-glow.b { bottom: -260px; right: -200px; background: var(--blight-400); opacity: 0.22; animation-duration: 26s; animation-delay: -6s; }
+
+  @keyframes drift {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(40px, -30px) scale(1.08); }
+  }
+
+  .veins {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.16;
+  }
+  .veins path {
+    fill: none;
+    stroke: var(--leaf-600);
+    stroke-width: 1.1;
+    stroke-linecap: round;
+    stroke-dasharray: 900;
+    stroke-dashoffset: 900;
+    animation: draw-vein 3.6s ease-out forwards;
+  }
+  .veins path:nth-child(2) { animation-delay: 0.15s; }
+  .veins path:nth-child(3) { animation-delay: 0.3s; }
+  .veins path:nth-child(4) { animation-delay: 0.45s; }
+  .veins path:nth-child(5) { animation-delay: 0.6s; }
+
+  @keyframes draw-vein {
+    to { stroke-dashoffset: 0; }
+  }
+
+  /* ---------- Layout ---------- */
+  .app {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 64px 20px 48px;
+  }
+
+  header {
+    margin-bottom: 40px;
+    opacity: 0;
+    animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--leaf-600);
+    background: var(--leaf-100);
+    border: 1px solid var(--leaf-300);
+    padding: 6px 12px;
+    border-radius: 999px;
+    margin-bottom: 20px;
+  }
+
+  .eyebrow-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--leaf-500);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: clamp(34px, 5.5vw, 50px);
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    margin: 0 0 14px;
+    color: var(--ink);
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--leaf-600);
+  }
+
+  header p {
+    margin: 0;
+    max-width: 46ch;
+    color: var(--ink-soft);
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 30px;
+    margin-bottom: 22px;
+    border: 1px solid var(--line);
+    opacity: 0;
+    animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: 0.12s;
+  }
+
+  /* ---------- Dropzone ---------- */
+  .dropzone {
+    border: 1.5px dashed var(--leaf-500);
+    border-radius: 16px;
+    background:
+      repeating-linear-gradient(135deg, transparent, transparent 10px, rgba(63,143,92,0.035) 10px, rgba(63,143,92,0.035) 20px),
+      var(--leaf-100);
+    padding: 46px 20px;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.3s ease, background-color 0.3s ease, transform 0.25s ease;
+  }
+
+  .dropzone:hover { transform: translateY(-2px); }
+
+  .dropzone.dragover {
+    border-color: var(--leaf-600);
+    border-style: solid;
+    background-color: var(--leaf-100);
+    animation: pulse-zone 1s ease-in-out infinite;
+  }
+
+  @keyframes pulse-zone {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(63, 143, 92, 0.25); }
+    50% { box-shadow: 0 0 0 12px rgba(63, 143, 92, 0); }
+  }
+
+  .dropzone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .dropzone-icon {
+    font-size: 38px;
+    margin-bottom: 12px;
+    display: inline-block;
+    animation: float-leaf 4s ease-in-out infinite;
+    transform-origin: 50% 80%;
+  }
+
+  @keyframes float-leaf {
+    0%, 100% { transform: translateY(0) rotate(-3deg); }
+    50% { transform: translateY(-8px) rotate(3deg); }
+  }
+
+  .dropzone-title {
+    font-family: var(--display);
+    font-weight: 500;
+    color: var(--leaf-900);
+    font-size: 19px;
+    margin-bottom: 6px;
+  }
+
+  .dropzone-sub {
+    color: var(--ink-soft);
+    font-size: 13.5px;
+  }
+
+  .dropzone-sub .link-text {
+    color: var(--leaf-600);
+    font-weight: 700;
+    position: relative;
+  }
+
+  .dropzone-sub .link-text::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -2px;
+    height: 1px;
+    background: var(--leaf-600);
+    transform: scaleX(1);
+  }
+
+  /* ---------- Preview ---------- */
+  .preview-wrap {
+    display: none;
+    margin-top: 22px;
+    align-items: center;
+    gap: 18px;
+    background: var(--canvas-deep);
+    border-radius: 14px;
+    padding: 14px;
+  }
+
+  .preview-wrap.show {
+    display: flex;
+    animation: reveal-clip 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes reveal-clip {
+    from { clip-path: inset(0 100% 0 0); opacity: 0.4; }
+    to { clip-path: inset(0 0 0 0); opacity: 1; }
+  }
+
+  .preview-img-wrap {
+    position: relative;
+    width: 96px;
+    height: 96px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 2px solid var(--white);
+    box-shadow: var(--shadow);
+  }
+
+  .preview-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #7dffb0, transparent);
+    box-shadow: 0 0 10px 2px rgba(63, 220, 130, 0.7);
+    top: -10%;
+    opacity: 0;
+  }
+
+  .scan-line.active {
+    opacity: 1;
+    animation: scan-sweep 1.3s ease-in-out infinite;
+  }
+
+  .scan-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(63,143,92,0.18) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(63,143,92,0.18) 1px, transparent 1px);
+    background-size: 12px 12px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .scan-grid.active { opacity: 1; }
+
+  @keyframes scan-sweep {
+    0% { top: -5%; }
+    50% { top: 100%; }
+    100% { top: -5%; }
+  }
+
+  .preview-meta { flex: 1; min-width: 0; }
+
+  .preview-name {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .preview-size {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-top: 3px;
+  }
+
+  .remove-btn {
+    background: var(--white);
+    border: 1px solid var(--line);
+    color: var(--blight-500);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s ease, transform 0.15s ease;
+  }
+  .remove-btn:hover { background: #fbeee6; transform: translateY(-1px); }
+
+  /* ---------- Predict button ---------- */
+  .predict-btn {
+    width: 100%;
+    margin-top: 24px;
+    padding: 16px;
+    border: none;
+    border-radius: 13px;
+    background: linear-gradient(120deg, var(--leaf-500), var(--leaf-900) 140%);
+    background-size: 180% 180%;
+    background-position: 0% 50%;
+    color: var(--white);
+    font-family: var(--body);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease, background-position 0.6s ease;
+    box-shadow: 0 10px 24px rgba(19, 48, 33, 0.28);
+  }
+
+  .predict-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 30px rgba(19, 48, 33, 0.36);
+    background-position: 100% 50%;
+  }
+
+  .predict-btn:active:not(:disabled) { transform: translateY(0); }
+
+  .predict-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .predict-btn .ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.5);
+    transform: scale(0);
+    animation: ripple-out 0.6s ease-out forwards;
+    pointer-events: none;
+  }
+
+  @keyframes ripple-out {
+    to { transform: scale(3.5); opacity: 0; }
+  }
+
+  .spinner {
+    width: 17px;
+    height: 17px;
+    border: 2.5px solid rgba(255,255,255,0.35);
+    border-top-color: var(--white);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+    flex-shrink: 0;
+  }
+  .spinner.show { display: inline-block; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- Result card ---------- */
+  .result-card {
+    display: none;
+    animation-delay: 0s !important;
+  }
+  .result-card.show {
+    display: block;
+    opacity: 0;
+    animation: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .result-title {
+    font-family: var(--mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-soft);
+    font-weight: 600;
+  }
+
+  .severity-tag {
+    padding: 5px 13px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: var(--mono);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    opacity: 0;
+    animation: pop-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    animation-delay: 0.15s;
+  }
+
+  @keyframes pop-in {
+    from { opacity: 0; transform: scale(0.7); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .severity-none { background: var(--leaf-100); color: var(--leaf-600); }
+  .severity-moderate { background: #fbe9d3; color: var(--blight-700); }
+  .severity-high { background: #f7ddd0; color: var(--blight-700); }
+
+  .result-main {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+  }
+
+  /* Radial confidence ring */
+  .ring-wrap {
+    position: relative;
+    width: 118px;
+    height: 118px;
+    flex-shrink: 0;
+  }
+
+  .ring-wrap svg { transform: rotate(-90deg); width: 100%; height: 100%; }
+
+  .ring-track { fill: none; stroke: var(--canvas-deep); stroke-width: 9; }
+
+  .ring-fill {
+    fill: none;
+    stroke: var(--leaf-500);
+    stroke-width: 9;
+    stroke-linecap: round;
+    stroke-dasharray: 314;
+    stroke-dashoffset: 314;
+    transition: stroke-dashoffset 1.1s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.4s ease;
+  }
+
+  .ring-fill.disease { stroke: var(--blight-500); }
+
+  .ring-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+
+  .ring-value {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .ring-caption {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .result-text { flex: 1; min-width: 200px; }
+
+  .predicted-class {
+    font-family: var(--display);
+    font-size: 30px;
+    font-weight: 500;
+    line-height: 1.1;
+    color: var(--ink);
+    margin-bottom: 8px;
+    opacity: 0;
+    animation: rise 0.5s ease forwards;
+    animation-delay: 0.1s;
+  }
+
+  .predicted-class.healthy { color: var(--leaf-600); }
+  .predicted-class.disease { color: var(--blight-700); }
+
+  .advice-summary {
+    color: var(--ink-soft);
+    font-size: 14px;
+    line-height: 1.6;
+    opacity: 0;
+    animation: rise 0.5s ease forwards;
+    animation-delay: 0.2s;
+  }
+
+  .class-breakdown {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px dashed var(--line);
+  }
+
+  .breakdown-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 12px;
+  }
+
+  .breakdown-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    font-size: 14px;
+    color: var(--ink);
+    padding: 7px 0;
+    opacity: 0;
+    transform: translateX(-8px);
+    animation: slide-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: calc(0.25s + var(--i, 0) * 0.08s);
+  }
+
+  @keyframes slide-in {
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .breakdown-check {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--leaf-100);
+    color: var(--leaf-600);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    margin-top: 1px;
+  }
+
+  /* ---------- Error card ---------- */
+  .error-card {
+    display: none;
+    background: #fbeee6;
+    border: 1px solid #ecc9b3;
+    color: var(--blight-700);
+    border-radius: 14px;
+    padding: 18px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .error-card.show {
+    display: flex;
+    animation: shake-in 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+
+  @keyframes shake-in {
+    0% { opacity: 0; transform: translateX(0); }
+    30% { opacity: 1; transform: translateX(-6px); }
+    50% { transform: translateX(5px); }
+    70% { transform: translateX(-3px); }
+    100% { transform: translateX(0); }
+  }
+
+  .error-icon { font-size: 20px; flex-shrink: 0; }
+
+  footer {
+    text-align: center;
+    color: var(--ink-soft);
+    opacity: 0.6;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    margin-top: 14px;
+  }
+
+  @media (max-width: 520px) {
+    .app { padding: 44px 16px 32px; }
+    .card { padding: 22px; }
+    .predicted-class { font-size: 24px; }
+    .preview-wrap { flex-direction: column; align-items: flex-start; }
+    .result-main { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ambient" aria-hidden="true">
+  <div class="ambient-glow a"></div>
+  <div class="ambient-glow b"></div>
+  <svg class="veins" viewBox="0 0 800 800" preserveAspectRatio="none">
+    <path d="M -50 120 Q 200 60 400 160 T 850 140" />
+    <path d="M -50 620 Q 220 700 420 600 T 850 640" />
+    <path d="M 100 -50 Q 60 250 160 420 T 120 850" />
+    <path d="M 700 -50 Q 660 220 720 400 T 700 850" />
+    <path d="M -50 400 Q 300 340 400 400 T 850 400" />
+  </svg>
+</div>
+
+<div class="app">
+
+  <header>
+    <div class="eyebrow"><span class="eyebrow-dot"></span> CNN Vision Model &middot; Live Inference</div>
+    <h1>Know your potato leaf<br><em>before it spreads.</em></h1>
+    <p>Upload a photo of a leaf and the model will scan it for Early Blight and Late Blight, with a confidence score and what to do next.</p>
+  </header>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept="image/*" />
+      <div class="dropzone-icon">🍃</div>
+      <div class="dropzone-title">Drop a leaf photo here</div>
+      <div class="dropzone-sub">or <span class="link-text">browse your files</span> — JPG or PNG</div>
+    </div>
+
+    <div class="preview-wrap" id="previewWrap">
+      <div class="preview-img-wrap">
+        <img id="previewImg" class="preview-img" alt="Preview" />
+        <div class="scan-grid" id="scanGrid"></div>
+        <div class="scan-line" id="scanLine"></div>
+      </div>
+      <div class="preview-meta">
+        <div class="preview-name" id="previewName"></div>
+        <div class="preview-size" id="previewSize"></div>
+      </div>
+      <button class="remove-btn" id="removeBtn" type="button">Remove</button>
+    </div>
+
+    <button class="predict-btn" id="predictBtn" type="button" disabled>
+      <span class="spinner" id="spinner"></span>
+      <span id="predictBtnLabel">Scan Leaf</span>
+    </button>
+  </div>
+
+  <div class="card result-card" id="resultCard">
+    <div class="result-header">
+      <div class="result-title">Diagnosis</div>
+      <span class="severity-tag" id="severityTag">—</span>
+    </div>
+
+    <div class="result-main">
+      <div class="ring-wrap">
+        <svg viewBox="0 0 118 118">
+          <circle class="ring-track" cx="59" cy="59" r="50"></circle>
+          <circle class="ring-fill" id="ringFill" cx="59" cy="59" r="50"></circle>
+        </svg>
+        <div class="ring-label">
+          <div class="ring-value" id="ringValue">0%</div>
+          <div class="ring-caption">Confidence</div>
+        </div>
+      </div>
+      <div class="result-text">
+        <div class="predicted-class" id="predictedClass">—</div>
+        <div class="advice-summary" id="adviceSummary">—</div>
+      </div>
+    </div>
+
+    <div class="class-breakdown">
+      <div class="breakdown-title">Recommended actions</div>
+      <div id="recommendationsList"></div>
+    </div>
+  </div>
+
+  <div class="error-card" id="errorCard">
+    <div class="error-icon">⚠️</div>
+    <div id="errorText">Something went wrong.</div>
+  </div>
+
+  <footer>MODEL: CNN &middot; 255×255 INPUT &middot; 3 CLASSES &middot; FASTAPI BACKEND</footer>
+</div>
+
+<script>
+  const API_URL = "http://127.0.0.1:8000/predict";
+
+  const dropzone = document.getElementById("dropzone");
+  const fileInput = document.getElementById("fileInput");
+  const previewWrap = document.getElementById("previewWrap");
+  const previewImg = document.getElementById("previewImg");
+  const previewName = document.getElementById("previewName");
+  const previewSize = document.getElementById("previewSize");
+  const scanGrid = document.getElementById("scanGrid");
+  const scanLine = document.getElementById("scanLine");
+  const removeBtn = document.getElementById("removeBtn");
+  const predictBtn = document.getElementById("predictBtn");
+  const predictBtnLabel = document.getElementById("predictBtnLabel");
+  const spinner = document.getElementById("spinner");
+  const resultCard = document.getElementById("resultCard");
+  const severityTag = document.getElementById("severityTag");
+  const ringFill = document.getElementById("ringFill");
+  const ringValue = document.getElementById("ringValue");
+  const predictedClass = document.getElementById("predictedClass");
+  const adviceSummary = document.getElementById("adviceSummary");
+  const recommendationsList = document.getElementById("recommendationsList");
+  const errorCard = document.getElementById("errorCard");
+  const errorText = document.getElementById("errorText");
+
+  let selectedFile = null;
+  const RING_CIRCUMFERENCE = 314; // 2 * PI * 50, rounded
+
+  // Fallback copy in case the backend response doesn't include advice fields
+  const fallbackSummaries = {
+    "Healthy": "No signs of blight detected — the leaf appears healthy.",
+    "Early_Blight": "Signs consistent with Early Blight were detected.",
+    "Late_Blight": "Signs consistent with Late Blight were detected."
+  };
+
+  const loadingMessages = ["Scanning leaf surface...", "Comparing lesion patterns...", "Weighing model confidence..."];
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
+  function resetResults() {
+    resultCard.classList.remove("show");
+    errorCard.classList.remove("show");
+    ringFill.style.strokeDashoffset = RING_CIRCUMFERENCE;
+  }
+
+  function handleFile(file) {
+    if (!file || !file.type.startsWith("image/")) {
+      showError("Please select a valid image file (JPG or PNG).");
+      return;
+    }
+    selectedFile = file;
+    resetResults();
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      previewImg.src = e.target.result;
+      previewName.textContent = file.name;
+      previewSize.textContent = formatBytes(file.size);
+      previewWrap.classList.add("show");
+      predictBtn.disabled = false;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  dropzone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropzone.classList.add("dragover");
+  });
+  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+  dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropzone.classList.remove("dragover");
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  });
+
+  fileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) handleFile(file);
+  });
+
+  removeBtn.addEventListener("click", () => {
+    selectedFile = null;
+    fileInput.value = "";
+    previewWrap.classList.remove("show");
+    predictBtn.disabled = true;
+    resetResults();
+  });
+
+  function showError(message) {
+    resultCard.classList.remove("show");
+    errorText.textContent = message;
+    errorCard.classList.add("show");
+  }
+
+  let loadingInterval = null;
+
+  function setLoading(isLoading) {
+    predictBtn.disabled = isLoading;
+    spinner.classList.toggle("show", isLoading);
+    scanGrid.classList.toggle("active", isLoading);
+    scanLine.classList.toggle("active", isLoading);
+
+    if (isLoading) {
+      let i = 0;
+      predictBtnLabel.textContent = loadingMessages[0];
+      loadingInterval = setInterval(() => {
+        i = (i + 1) % loadingMessages.length;
+        predictBtnLabel.textContent = loadingMessages[i];
+      }, 900);
+    } else {
+      clearInterval(loadingInterval);
+      predictBtnLabel.textContent = "Scan Leaf";
+    }
+  }
+
+  function animateCount(el, target) {
+    const duration = 1000;
+    const start = performance.now();
+    function tick(now) {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = (target * eased).toFixed(1) + "%";
+      if (progress < 1) requestAnimationFrame(tick);
+      else el.textContent = target.toFixed(2) + "%";
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function showResult(data) {
+    errorCard.classList.remove("show");
+
+    const label = data.class;
+    const confidence = data.confidence;
+    const isHealthy = label === "Healthy";
+    const severity = data.severity || (isHealthy ? "none" : "moderate");
+    const summary = data.summary || fallbackSummaries[label] || "Scan complete.";
+    const recommendations = Array.isArray(data.recommendations) ? data.recommendations : [];
+
+    severityTag.textContent = severity === "none" ? "Healthy" : severity + " risk";
+    severityTag.className = "severity-tag severity-" + severity;
+
+    predictedClass.textContent = label.replace(/_/g, " ");
+    predictedClass.className = "predicted-class " + (isHealthy ? "healthy" : "disease");
+
+    adviceSummary.textContent = summary;
+
+    ringFill.classList.toggle("disease", !isHealthy);
+    ringValue.textContent = "0%";
+
+    recommendationsList.innerHTML = "";
+    recommendations.forEach((tip, idx) => {
+      const row = document.createElement("div");
+      row.className = "breakdown-item";
+      row.style.setProperty("--i", idx);
+      row.innerHTML = '<span class="breakdown-check">&#10003;</span><span>' +
+        tip.replace(/&/g, "&amp;").replace(/</g, "&lt;") + '</span>';
+      recommendationsList.appendChild(row);
+    });
+
+    resultCard.classList.add("show");
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const offset = RING_CIRCUMFERENCE - (RING_CIRCUMFERENCE * Math.min(confidence, 100)) / 100;
+        ringFill.style.strokeDashoffset = offset;
+        animateCount(ringValue, confidence);
+      });
+    });
+
+    resultCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  async function predictDisease() {
+    if (!selectedFile) return;
+
+    setLoading(true);
+    resetResults();
+
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+
+    try {
+      const response = await fetch(API_URL, { method: "POST", body: formData });
+
+      if (!response.ok) {
+        let detail = "Prediction failed. Please try again.";
+        try {
+          const errJson = await response.json();
+          detail = errJson.detail || detail;
+        } catch (_) {}
+        throw new Error(detail);
+      }
+
+      const data = await response.json();
+      showResult(data);
+    } catch (err) {
+      console.error(err);
+      if (err instanceof TypeError) {
+        showError("Could not connect to the server. Make sure the FastAPI backend is running at http://127.0.0.1:8000.");
+      } else {
+        showError(err.message || "An unexpected error occurred.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  predictBtn.addEventListener("click", (e) => {
+    // small ripple micro-interaction on click
+    const rect = predictBtn.getBoundingClientRect();
+    const ripple = document.createElement("span");
+    ripple.className = "ripple";
+    const size = Math.max(rect.width, rect.height);
+    ripple.style.width = ripple.style.height = size + "px";
+    ripple.style.left = (e.clientX - rect.left - size / 2) + "px";
+    ripple.style.top = (e.clientY - rect.top - size / 2) + "px";
+    predictBtn.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 650);
+
+    predictDisease();
+  });
+</script>
+</body>
+</html>
